@@ -19,7 +19,10 @@
      rayos de luz (god rays) y polvo en el aire.
   6. DOS camaras: aerea cinematografica (recorrido, foco, viento, sacudida)
      y SUBMARINA que baja al agua cuando el colapso inunda el pasillo.
-  7. Tres tomas: apertura -> muros -> colapso (+ inundacion bajo el agua).
+  7. CORTOMETRAJE: 7 planos con cambio automatico de camara por marcadores:
+     establecimiento aereo -> dolly lateral del muro -> persecucion de
+     pajaros -> pasillo a nivel de suelo -> colapso en gran angular ->
+     caida del muro de cerca -> inundacion submarina.
   8. Efectos extra BRUTALES: relampagos que iluminan los muros, spray de
      particulas en la base y la cresta, niebla de impacto del colapso,
      bandadas de pajaros huyendo y escena MARROJO_SlowMo con camara lenta
@@ -2391,21 +2394,156 @@ def crear_camara_submarina(col_camara, col_atmos):
             mod.blend_in = 20
             mod.blend_out = 20
 
-    # Marcadores de camara en la linea de tiempo: aerea -> submarina
-    for mk in list(escena.timeline_markers):
-        if mk.name in ("Aerea", "Submarina"):
-            escena.timeline_markers.remove(mk)
-    for nombre, f, camara in (("Aerea", CONFIG.FRAME_START, bpy.data.objects.get("Camara_Epica")),
-                              ("Submarina", t0, cam)):
-        if camara is None:
-            continue
-        mk = escena.timeline_markers.new(nombre, frame=f)
-        mk.camera_data = camara
+    # Los marcadores de cambio de camara (los 7 planos del cortometraje)
+    # se configuran en configurar_planos_cortometraje(), al final.
 
     crear_volumen_submarino(col_atmos)
     mover_a_coleccion(cam, col_camara)
     mover_a_coleccion(objetivo, col_camara)
     return cam
+
+
+def _camara_con_objetivo(nombre, lente, coleccion):
+    """Crea una camara + empty objetivo con TRACK_TO. Devuelve (cam, objetivo, data)."""
+    bpy.ops.object.camera_add(location=(0, 0, 10))
+    cam = bpy.context.active_object
+    cam.name = nombre
+    cd = cam.data
+    cd.lens = lente
+    cd.sensor_width = 36
+    cd.clip_start = 0.5
+    cd.clip_end = 5000
+    seguro(cd.dof, "use_dof", True)
+    seguro(cd.dof, "aperture_fstop", 2.8)
+    bpy.ops.object.empty_add(type='SPHERE', location=(0, 0, 10))
+    objetivo = bpy.context.active_object
+    objetivo.name = nombre + "_Objetivo"
+    objetivo.empty_display_size = 3
+    trk = cam.constraints.new('TRACK_TO')
+    trk.target = objetivo
+    trk.track_axis = 'TRACK_NEGATIVE_Z'
+    trk.up_axis = 'UP_Y'
+    mover_a_coleccion(cam, coleccion)
+    mover_a_coleccion(objetivo, coleccion)
+    return cam, objetivo, cd
+
+
+def _ruta_clave(obj, data_path, claves):
+    for frame, valor in claves:
+        if data_path == "location":
+            obj.location = valor
+            obj.keyframe_insert(data_path="location", frame=frame)
+        elif data_path == "lens":
+            obj.lens = valor
+            obj.keyframe_insert(data_path="lens", frame=frame)
+        elif data_path == "focus_distance":
+            obj.dof.focus_distance = valor
+            obj.dof.keyframe_insert(data_path="focus_distance", frame=frame)
+
+
+def crear_camaras_cortometraje(coleccion):
+    """
+    CORTOMETRAJE: 4 camaras nuevas para cubrir los planos que faltaban.
+    Cada una con su recorrido keyframeado y su objetivo con TRACK_TO.
+    El cambio entre planos lo hacen los marcadores (configurar_planos_cortometraje).
+    """
+    # --- PLANO 2: dolly lateral junto al muro izquierdo mientras sube ---
+    cam, obj, cd = _camara_con_objetivo("Cam_Apertura_Lateral", 35, coleccion)
+    _ruta_clave(cam, "location", [
+        (70, (-150, -180, 35)), (105, (-95, 40, 48)), (140, (-55, 260, 55)),
+    ])
+    _ruta_clave(obj, "location", [
+        (70, (-35, -100, 30)), (140, (-35, 150, 45)),
+    ])
+    _ruta_clave(cd, "focus_distance", [(70, 90), (140, 90)])
+    suavizar_fcurves(cam, 'BEZIER')
+    suavizar_fcurves(obj, 'BEZIER')
+
+    # --- PLANO 3: persecucion de pajaros (vuela con la bandada A) ---
+    cam, obj, cd = _camara_con_objetivo("Cam_Pajaros", 50, coleccion)
+    _ruta_clave(cam, "location", [
+        (140, (-150, -10, 130)), (175, (-185, 60, 150)), (210, (-220, 130, 170)),
+    ])
+    _ruta_clave(obj, "location", [
+        (140, (-200, 60, 100)), (210, (-270, 200, 140)),
+    ])
+    _ruta_clave(cd, "focus_distance", [(140, 70), (210, 70)])
+    suavizar_fcurves(cam, 'BEZIER')
+    suavizar_fcurves(obj, 'BEZIER')
+
+    # --- PLANO 4: dentro del pasillo a nivel de suelo (el plano de escala) ---
+    cam, obj, cd = _camara_con_objetivo("Cam_Pasillo", 24, coleccion)
+    _ruta_clave(cam, "location", [
+        (210, (-12, -120, 6)), (250, (8, 30, 7)), (290, (0, 180, 9)),
+    ])
+    _ruta_clave(obj, "location", [
+        (210, (0, 60, 40)), (290, (0, 320, 45)),
+    ])
+    _ruta_clave(cd, "focus_distance", [(210, 120), (290, 120)])
+    suavizar_fcurves(cam, 'BEZIER')
+    suavizar_fcurves(obj, 'BEZIER')
+
+    # --- PLANO 6: cerca de la esquina donde cae el primer trozo ---
+    cam, obj, cd = _camara_con_objetivo("Cam_Colapso", 40, coleccion)
+    _ruta_clave(cam, "location", [
+        (345, (95, -70, 58)), (378, (65, 0, 48)), (410, (45, 70, 42)),
+    ])
+    _ruta_clave(obj, "location", [
+        (345, (-30, 40, 35)), (410, (-30, 60, 25)),
+    ])
+    _ruta_clave(cd, "focus_distance", [(345, 110), (410, 90)])
+    suavizar_fcurves(cam, 'BEZIER')
+    suavizar_fcurves(obj, 'BEZIER')
+    # sacudida fuerte cuando el muro se desploma
+    for fc in obtener_fcurves(cam):
+        if fc.data_path == "location":
+            idx = fc.array_index
+            mod = fc.modifiers.new('NOISE')
+            mod.scale = 5.0
+            mod.strength = 0.5 if idx != 2 else 0.7
+            mod.phase = random.uniform(0, 100)
+            mod.use_restricted_range = True
+            mod.frame_start = 345
+            mod.frame_end = 460
+            mod.blend_in = 10
+            mod.blend_out = 25
+
+
+def configurar_planos_cortometraje():
+    """
+    CORTOMETRAJE: 7 planos con cambio AUTOMATICO de camara por marcadores.
+      1. Establecimiento aereo ....... Camara_Epica ....... frames 1-70
+      2. Dolly lateral del muro ....... Cam_Apertura_Lateral  frames 70-140
+      3. Persecucion de pajaros ....... Cam_Pajaros ......... frames 140-210
+      4. Pasillo a nivel de suelo ..... Cam_Pasillo ......... frames 210-290
+      5. Colapso en gran angular ...... Camara_Epica ........ frames 290-345
+      6. Caida del muro (de cerca) .... Cam_Colapso ......... frames 345-410
+      7. Inundacion submarina ......... Camara_Submarina .... frames 410-600
+    """
+    escena = bpy.context.scene
+    for mk in list(escena.timeline_markers):
+        if mk.name in ("Aerea", "Submarina") or mk.name.startswith("Plano"):
+            escena.timeline_markers.remove(mk)
+    planos = [
+        (1, "Plano1_Establecimiento", "Camara_Epica"),
+        (70, "Plano2_Muro_Lateral", "Cam_Apertura_Lateral"),
+        (140, "Plano3_Pajaros", "Cam_Pajaros"),
+        (210, "Plano4_Pasillo", "Cam_Pasillo"),
+        (290, "Plano5_Colapso_Amplio", "Camara_Epica"),
+        (345, "Plano6_Caida_Muro", "Cam_Colapso"),
+        (410, "Plano7_Submarina", "Camara_Submarina"),
+    ]
+    for f, nombre, cam_nombre in planos:
+        cam = bpy.data.objects.get(cam_nombre)
+        if cam is None:
+            print(f"[aviso] No existe la camara {cam_nombre}")
+            continue
+        mk = escena.timeline_markers.new(nombre, frame=f)
+        mk.camera_data = cam
+    epica = bpy.data.objects.get("Camara_Epica")
+    if epica is not None:
+        escena.camera = epica
+    print("[ok] 7 planos del cortometraje configurados (cambio auto de camara).")
 
 
 # ---------------------------------------------------------------------
@@ -2831,7 +2969,7 @@ def construir_escena():
     col_camara = crear_coleccion("05_Camara")
     col_detalle = crear_coleccion("06_Detalles")
 
-    T = 18
+    T = 19
     suelo = _paso(1, T, "Suelo del desierto", crear_suelo, col_terreno)
     _paso(2, T, "Montanas procedurales", crear_montanas, col_montanas)
     _paso(3, T, "MAR CONTINUO que se abre (visible sin bake)", crear_mar_continuo, col_agua)
@@ -2855,6 +2993,9 @@ def construir_escena():
     _paso(17, T, "Refuerzo de texturas (suelo, montanas, rocas)", reforzar_texturas)
     _paso(18, T, "Compositor (bloom y color) + escena SlowMo", lambda: (configurar_compositor(),
                                                                         configurar_slowmo_vse()))
+    _paso(19, T, "Camaras del cortometraje (7 planos con cambio auto)",
+          lambda: (crear_camaras_cortometraje(col_camara),
+                   configurar_planos_cortometraje()))
 
     try:
         bpy.context.scene.frame_set(CONFIG.FRAME_START)

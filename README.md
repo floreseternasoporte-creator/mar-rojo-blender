@@ -16,9 +16,12 @@ el Mar Rojo abriéndose en dos muros de agua gigantes y colapsando como un tsuna
      del agua, como en la vida real. Ya no se ve negra.
    - **Escenario grande**: pasillo de 900 m, suelo de 2400 m, cordilleras lejanas y mar abierto.
 4. **Cielo tormentoso** — nubes procedurales en dos capas, niebla, rayos de luz y polvo en el aire.
-5. **DOS cámaras** — aérea cinematográfica (recorrido en tres actos, foco dinámico, viento y sacudida) y
-   **cámara SUBMARINA**: cuando el colapso inunda el pasillo, la cámara baja al agua y graba la inundación
-   desde dentro, con volumen azul bajo el agua. El cambio es automático con marcadores de cámara.
+5. **Cámaras del cortometraje** — 7 planos con cambio automático (marcadores en la línea de tiempo):
+   1. Establecimiento aéreo (1-70) · 2. Dolly lateral junto al muro (70-140) ·
+   3. Persecución de pájaros en el aire (140-210) · 4. Pasillo a nivel de suelo, muros gigantes a los lados (210-290) ·
+   5. Colapso en gran angular (290-345) · 6. Caída del muro de cerca, con sacudida (345-410) ·
+   7. **Cámara SUBMARINA**: cuando el colapso inunda el pasillo, la cámara baja al agua y graba la inundación
+   desde dentro, con volumen azul bajo el agua (410-600).
 6. **Tres tomas**: apertura → muros → colapso (+ inundación submarina).
 7. **Efectos especiales BRUTALES**:
    - ⚡ **Relámpagos** — 7 rayos con geometría quebrada que parpadean como relámpagos reales; dos caen
