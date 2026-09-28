@@ -2182,12 +2182,15 @@ def crear_relampagos(coleccion):
         mover_a_coleccion(luz, coleccion)
 
         # --- parpadeo: aparece, golpe doble, se apaga ---
-        rayo.hide_render = True
-        rayo.keyframe_insert(data_path="hide_render", frame=f0 - 2)
-        rayo.hide_render = False
-        rayo.keyframe_insert(data_path="hide_render", frame=f0)
-        rayo.hide_render = True
-        rayo.keyframe_insert(data_path="hide_render", frame=f0 + 10)
+        # (render Y viewport sincronizados: ves lo mismo que saldra en el render)
+        for attr, f, valor in (("hide_render", f0 - 2, True),
+                               ("hide_render", f0, False),
+                               ("hide_render", f0 + 10, True),
+                               ("hide_viewport", f0 - 2, True),
+                               ("hide_viewport", f0, False),
+                               ("hide_viewport", f0 + 10, True)):
+            setattr(rayo, attr, valor)
+            rayo.keyframe_insert(data_path=attr, frame=f)
 
         for f, e in [(f0, 0.0), (f0 + 2, 70.0), (f0 + 4, 6.0),
                      (f0 + 6, 55.0), (f0 + 10, 0.0)]:
