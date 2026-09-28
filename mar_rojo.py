@@ -20,6 +20,10 @@
   6. DOS camaras: aerea cinematografica (recorrido, foco, viento, sacudida)
      y SUBMARINA que baja al agua cuando el colapso inunda el pasillo.
   7. Tres tomas: apertura -> muros -> colapso (+ inundacion bajo el agua).
+  8. Efectos extra BRUTALES: relampagos que iluminan los muros, spray de
+     particulas en la base y la cresta, niebla de impacto del colapso,
+     bandadas de pajaros huyendo y escena MARROJO_SlowMo con camara lenta
+     (0.30x) durante el colapso.
 
   NOVEDADES DE ESTA VERSION (sobre tu script)
   -------------------------------------------
@@ -398,6 +402,7 @@ def configurar_render():
     escena.render.resolution_x = CONFIG.RES_X
     escena.render.resolution_y = CONFIG.RES_Y
     escena.render.resolution_percentage = CONFIG.RES_PORCENTAJE
+    escena.render.filepath = "//render/marrojo_"
 
     cy = escena.cycles
     cy.samples = CONFIG.SAMPLES
@@ -1674,6 +1679,80 @@ def crear_colision_suelo(suelo):
     seguro(mod.effector_settings, "surface_distance", 0.0)
 
 
+def crear_spray_muros(coleccion):
+    """
+    SPRAY de agua BRUTAL: salpicaduras que salen disparadas de la BASE y
+    la CRESTA de los muros mientras se forman, y una explosion de espuma
+    cuando colapsan. Los emisores SIGUEN al muro: se abren (X) y crecen
+    (Z) al ritmo de la apertura.
+    """
+    mat_spray = bpy.data.materials.new("Spray_Muro")
+    mat_spray.use_nodes = True
+    nt = mat_spray.node_tree
+    nodes, links = nt.nodes, nt.links
+    nodes.clear()
+    salida = nodes.new("ShaderNodeOutputMaterial")
+    emi = nodes.new("ShaderNodeEmission")
+    emi.inputs["Color"].default_value = (0.82, 0.90, 0.95, 1.0)
+    emi.inputs["Strength"].default_value = 1.2
+    links.new(emi.outputs[0], salida.inputs["Surface"])
+
+    emisores = []
+    for lado, signo in (("Izq", -1), ("Der", 1)):
+        for zona, z0, z1 in (("Base", 4.0, 6.0), ("Cresta", 14.0, 72.0)):
+            bpy.ops.mesh.primitive_plane_add(size=1.0, location=(signo * 8, 100, z0))
+            em = bpy.context.active_object
+            em.name = f"Emisor_Spray_{lado}_{zona}"
+            em.scale = (4.0, 450.0, 1.0)
+            em.hide_render = True
+            # el emisor sigue al muro mientras se abre y crece
+            for f, x, z in [(CONFIG.T_APERTURA_INI, signo * 8, z0),
+                            (150, signo * 20, (z0 + z1) * 0.55),
+                            (CONFIG.T_APERTURA_FIN, signo * 30, z1)]:
+                em.location = (x, 100, z)
+                em.keyframe_insert(data_path="location", frame=f)
+            suavizar_fcurves(em, 'BEZIER')
+            em.data.materials.append(mat_spray)
+            mover_a_coleccion(em, coleccion)
+            emisores.append((em, zona, signo))
+
+    def _sistema(em, nombre, f_ini, f_fin, cantidad, vel_normal, align_xyz,
+                 gravedad, vida, tam):
+        em.modifiers.new(nombre, 'PARTICLE_SYSTEM')
+        ps = em.particle_systems[-1]
+        st = ps.settings
+        st.name = nombre
+        st.count = cantidad
+        st.frame_start = f_ini
+        st.frame_end = f_fin
+        st.lifetime = vida
+        st.lifetime_random = 0.5
+        st.emit_from = 'FACE'
+        st.distribution = 'RANDOM'
+        st.normal_factor = vel_normal
+        st.object_align_factor = align_xyz
+        st.factor_random = 0.6
+        st.physics_type = 'NEWTON'
+        st.effector_weights.gravity = gravedad
+        st.brownian_factor = 2.0
+        st.drag_factor = 0.4
+        st.particle_size = tam
+        st.size_random = 0.9
+        st.render_type = 'HALO'
+
+    for em, zona, signo in emisores:
+        if zona == "Base":
+            _sistema(em, "Spray_Formacion", 40, 340, 6000, 16.0,
+                     (signo * 12.0, 0.0, 14.0), 0.35, 45, 0.35)
+            _sistema(em, "Spray_Colapso", 340, 560, 8000, 26.0,
+                     (signo * 22.0, 0.0, 10.0), 0.5, 70, 0.45)
+        else:
+            _sistema(em, "Spray_Formacion", 60, 340, 4000, 6.0,
+                     (signo * 16.0, 0.0, -8.0), 0.6, 40, 0.3)
+            _sistema(em, "Spray_Colapso", 340, 560, 6000, 12.0,
+                     (signo * 26.0, 0.0, -12.0), 0.7, 60, 0.4)
+
+
 def crear_mar_previo(coleccion):
     """
     Mar que existe ANTES de abrirse. Es una capa de agua plana que se
@@ -2019,6 +2098,105 @@ def crear_luces(coleccion):
     mover_a_coleccion(rebote, coleccion)
 
 
+def crear_relampagos(coleccion):
+    """
+    RAYOS de tormenta BRUTALES: geometria de relampago quebrada con
+    emision + luz de destello sincronizada que ilumina los muros de agua.
+    Varios caen durante la tormenta y mas durante el colapso; dos caen
+    DETRAS de los muros para iluminarlos desde adentro. Cada rayo
+    parpadea 2-3 veces como un relampago real.
+    """
+    rnd = random.Random(CONFIG.SEED + 500)
+
+    mat_base = bpy.data.materials.new("Rayo_Emision")
+    mat_base.use_nodes = True
+    nt = mat_base.node_tree
+    nodes, links = nt.nodes, nt.links
+    nodes.clear()
+    salida = nodes.new("ShaderNodeOutputMaterial")
+    emi_base = nodes.new("ShaderNodeEmission")
+    emi_base.inputs["Color"].default_value = (0.75, 0.85, 1.0, 1.0)
+    emi_base.inputs["Strength"].default_value = 0.0
+    links.new(emi_base.outputs[0], salida.inputs["Surface"])
+
+    # (frame del golpe, x, y, energia de la luz del destello)
+    golpes = [
+        (90, -260, -80, 250000),
+        (150, 300, 120, 300000),
+        (215, -80, 420, 280000),     # detras de los muros: los ilumina desde adentro
+        (285, 180, 260, 320000),     # detras de los muros
+        (360, -200, 60, 380000),
+        (430, 120, 330, 420000),
+        (510, -60, 180, 380000),
+    ]
+
+    for i, (f0, bx, by, energia) in enumerate(golpes):
+        mat_i = mat_base.copy()
+        emi = next(n for n in mat_i.node_tree.nodes if n.type == 'EMISSION')
+
+        # --- geometria del rayo: linea quebrada del cielo a la tierra ---
+        n_seg = rnd.randint(8, 12)
+        puntos = []
+        x, y = bx, by
+        for s in range(n_seg + 1):
+            z = 460 - (460 - 10) * (s / n_seg)
+            puntos.append((x, y, z))
+            x += rnd.uniform(-28, 28)
+            y += rnd.uniform(-28, 28)
+        curva = bpy.data.curves.new(f"Rayo_Curva_{i:02d}", type='CURVE')
+        curva.dimensions = '3D'
+        curva.bevel_depth = 0.9
+        curva.bevel_resolution = 1
+        spline = curva.splines.new('POLY')
+        spline.points.add(len(puntos) - 1)
+        for j, p in enumerate(puntos):
+            spline.points[j].co = (p[0], p[1], p[2], 1.0)
+        # una ramificacion
+        ram = curva.splines.new('POLY')
+        base = puntos[rnd.randint(2, 4)]
+        ram.points.add(3)
+        rx, ry = base[0], base[1]
+        for j in range(4):
+            ram.points[j].co = (rx, ry, base[2] - j * 55, 1.0)
+            rx += rnd.uniform(-35, 35)
+            ry += rnd.uniform(-35, 35)
+
+        rayo = bpy.data.objects.new(f"Rayo_{i:02d}", curva)
+        bpy.context.scene.collection.objects.link(rayo)
+        rayo.data.materials.append(mat_i)
+        mover_a_coleccion(rayo, coleccion)
+
+        # --- luz del destello ---
+        bpy.ops.object.light_add(type='POINT', location=(bx, by, 200))
+        luz = bpy.context.active_object
+        luz.name = f"Destello_Rayo_{i:02d}"
+        luz.data.energy = 0.0
+        luz.data.color = (0.75, 0.85, 1.0)
+        try:
+            luz.data.use_shadow = False
+        except Exception:
+            pass
+        mover_a_coleccion(luz, coleccion)
+
+        # --- parpadeo: aparece, golpe doble, se apaga ---
+        rayo.hide_render = True
+        rayo.keyframe_insert(data_path="hide_render", frame=f0 - 2)
+        rayo.hide_render = False
+        rayo.keyframe_insert(data_path="hide_render", frame=f0)
+        rayo.hide_render = True
+        rayo.keyframe_insert(data_path="hide_render", frame=f0 + 10)
+
+        for f, e in [(f0, 0.0), (f0 + 2, 70.0), (f0 + 4, 6.0),
+                     (f0 + 6, 55.0), (f0 + 10, 0.0)]:
+            emi.inputs["Strength"].default_value = e
+            emi.inputs["Strength"].keyframe_insert(data_path="default_value", frame=f)
+
+        for f, e in [(f0, 0.0), (f0 + 2, energia), (f0 + 4, energia * 0.12),
+                     (f0 + 6, energia * 0.8), (f0 + 10, 0.0)]:
+            luz.data.energy = e
+            luz.data.keyframe_insert(data_path="energy", frame=f)
+
+
 # ---------------------------------------------------------------------
 #  6. CAMARA CINEMATOGRAFICA
 # ---------------------------------------------------------------------
@@ -2275,6 +2453,137 @@ def crear_polvo_flotante(coleccion):
     return em
 
 
+def crear_niebla_impacto(coleccion):
+    """
+    NIEBLA DE IMPACTO: cuando el colapso inunda el pasillo, una nube de
+    bruma ENORME avanza con la ola. Son esferas de volumen que crecen,
+    se desplazan con la inundacion (+Y) y se disipan al final.
+    """
+    rnd = random.Random(CONFIG.SEED + 777)
+    for i in range(10):
+        f0 = 355 + i * 16
+        x0 = rnd.uniform(-45, 45)
+        y0 = rnd.uniform(-120, 60)
+
+        bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2, radius=1.0,
+                                              location=(x0, y0, 10))
+        nube = bpy.context.active_object
+        nube.name = f"Niebla_Impacto_{i:02d}"
+        nube.display_type = 'WIRE'
+
+        mat_ = bpy.data.materials.new(f"Volumen_Impacto_{i:02d}")
+        mat_.use_nodes = True
+        nt = mat_.node_tree
+        nodes, links = nt.nodes, nt.links
+        nodes.clear()
+        salida = nodes.new("ShaderNodeOutputMaterial")
+        scat = nodes.new("ShaderNodeVolumeScatter")
+        scat.inputs["Color"].default_value = (0.72, 0.80, 0.86, 1.0)
+        scat.inputs["Anisotropy"].default_value = 0.4
+        scat.inputs["Density"].default_value = 0.0
+        links.new(scat.outputs[0], salida.inputs["Volume"])
+        nube.data.materials.append(mat_)
+
+        s0 = rnd.uniform(28, 42)
+        # crece y avanza con la ola, sube un poco
+        for f, k in [(f0, 0.0), (f0 + 110, 1.0)]:
+            nube.location = (x0 * (1 - k * 0.3), y0 + k * 170, 10 + k * 14)
+            nube.scale = (s0 * (1 + k * 1.1), s0 * 0.8 * (1 + k * 1.1),
+                          s0 * 0.45 * (1 + k * 0.8))
+            nube.keyframe_insert(data_path="location", frame=f)
+            nube.keyframe_insert(data_path="scale", frame=f)
+        suavizar_fcurves(nube, 'BEZIER')
+
+        for f, d in [(f0, 0.0), (f0 + 25, 0.055), (f0 + 90, 0.055), (f0 + 140, 0.0)]:
+            scat.inputs["Density"].default_value = d
+            scat.inputs["Density"].keyframe_insert(data_path="default_value", frame=f)
+
+        mover_a_coleccion(nube, coleccion)
+
+
+def crear_pajaro_base(nombre, fase, mat):
+    """Pajaro simple (cuerpo + 2 alas) con shape key de aleteo animado."""
+    verts = [
+        (0.0, 0.7, 0.0),     # 0 pico
+        (0.0, -0.7, 0.0),    # 1 cola
+        (-0.55, 0.1, 0.0),   # 2 ala izq media
+        (-1.4, 0.0, 0.0),    # 3 ala izq punta
+        (0.55, 0.1, 0.0),    # 4 ala der media
+        (1.4, 0.0, 0.0),     # 5 ala der punta
+    ]
+    caras = [(0, 3, 2), (0, 2, 1), (0, 1, 4), (0, 4, 5)]
+    malla = bpy.data.meshes.new(nombre + "_Malla")
+    malla.from_pydata(verts, [], caras)
+    malla.update()
+    obj = bpy.data.objects.new(nombre, malla)
+    bpy.context.scene.collection.objects.link(obj)
+
+    obj.shape_key_add(name="Basis", from_mix=False)
+    sk = obj.shape_key_add(name="Aleteo", from_mix=False)
+    for idx, dz in ((2, 0.35), (3, 0.95), (4, 0.35), (5, 0.95)):
+        sk.data[idx].co.z += dz
+    # aleteo continuo, cada pajaro con su fase
+    drv = sk.driver_add("value")
+    drv.driver.type = 'SCRIPTED'
+    drv.driver.expression = f"0.5+0.5*sin(frame*0.85+{fase:.2f})"
+
+    obj.data.materials.append(mat)
+    return obj
+
+
+def crear_pajaros(coleccion):
+    """
+    PAJAROS HUYENDO: 3 bandadas (24 pajaros) que escapan cuando el mar
+    se abre. Cada pajaro vuela por su propia curva con desfase lateral,
+    aletea con su propia fase y aparece cuando empieza la apertura.
+    Dan escala y vida al cielo.
+    """
+    mat_pajaro = bpy.data.materials.new("Pajaro_Silueta")
+    mat_pajaro.use_nodes = True
+    bsdf = mat_pajaro.node_tree.nodes.get("Principled BSDF")
+    if bsdf:
+        bsdf.inputs["Base Color"].default_value = (0.02, 0.02, 0.025, 1.0)
+        bsdf.inputs["Roughness"].default_value = 1.0
+
+    rnd = random.Random(CONFIG.SEED + 300)
+    # (punto inicial, punto de control, punto final) de cada bandada
+    bandadas = [
+        ((-140, -60, 70), (-230, 130, 120), (-340, 330, 175)),
+        ((150, -90, 80), (250, 110, 125), (370, 350, 185)),
+        ((0, -140, 60), (-50, 90, 135), (-100, 390, 205)),
+    ]
+    n = 0
+    for p0, pc, p1 in bandadas:
+        for k in range(8):
+            pajaro = crear_pajaro_base(f"Pajaro_{n:02d}",
+                                       rnd.uniform(0, 6.28), mat_pajaro)
+            s = rnd.uniform(1.7, 2.5)
+            pajaro.scale = (s, s, s)
+            ini = int(40 + k * 6 + rnd.uniform(0, 12))
+            dur = int(rnd.uniform(200, 260))
+            # desfase lateral: no vuelan en fila india
+            off = np.array([rnd.uniform(-25, 25), rnd.uniform(-20, 20),
+                            rnd.uniform(-8, 14)])
+            p0a = np.array(p0) + off
+            pca = np.array(pc) + off * 1.5
+            p1a = np.array(p1) + off * 2.0
+            # curva de vuelo (bezier cuadratica) con keyframes
+            for f in range(ini, ini + dur + 1, 15):
+                t = (f - ini) / dur
+                pos = (1 - t) ** 2 * p0a + 2 * (1 - t) * t * pca + t ** 2 * p1a
+                pajaro.location = pos.tolist()
+                pajaro.keyframe_insert(data_path="location", frame=f)
+            suavizar_fcurves(pajaro, 'BEZIER')
+            # aparecen cuando el mar empieza a abrirse
+            pajaro.hide_render = True
+            pajaro.keyframe_insert(data_path="hide_render", frame=ini - 5)
+            pajaro.hide_render = False
+            pajaro.keyframe_insert(data_path="hide_render", frame=ini)
+            mover_a_coleccion(pajaro, coleccion)
+            n += 1
+    return n
+
+
 def crear_rocas_dispersas(coleccion, cantidad=220):
     """Piedras y cantos rodados repartidos por el lecho seco."""
     rnd = random.Random(CONFIG.SEED + 99)
@@ -2408,6 +2717,56 @@ def configurar_compositor():
         print(f"[aviso] Compositor omitido por incompatibilidad de version: {e}")
 
 
+def configurar_slowmo_vse():
+    """
+    Escena 'MARROJO_SlowMo' con CAMARA LENTA en el colapso (puro cine):
+    toma la escena principal como tira de video y le aplica un efecto de
+    velocidad ANIMADO: normal -> 0.30x cuando cae el primer muro -> normal.
+    Para usarla: cambia a la escena MARROJO_SlowMo y dale a
+    Render > Render Animation. No necesita pre-renderizar nada.
+    """
+    try:
+        main = bpy.context.scene
+        nombre = "MARROJO_SlowMo"
+        vieja = bpy.data.scenes.get(nombre)
+        if vieja is not None:
+            bpy.data.scenes.remove(vieja)
+        vse = bpy.data.scenes.new(nombre)
+        vse.render.resolution_x = main.render.resolution_x
+        vse.render.resolution_y = main.render.resolution_y
+        vse.render.resolution_percentage = main.render.resolution_percentage
+        vse.render.fps = main.render.fps
+        vse.frame_start = 1
+        vse.frame_end = 920
+        vse.render.filepath = "//render/marrojo_slowmo_"
+        vse.render.image_settings.file_format = 'FFMPEG'
+        seguro(vse.render.ffmpeg, "format", 'MPEG4')
+        seguro(vse.render.ffmpeg, "codec", 'H264')
+
+        se = vse.sequence_editor_create()
+        toma = se.sequences.new_scene("Toma_Principal", main, 1, 1)
+        toma.frame_final_duration = CONFIG.FRAME_END
+
+        f0 = CONFIG.T_COLAPSO_INI
+        lento = se.sequences.new_effect("Camara_Lenta", 'SPEED', 2, 1, 920,
+                                        seq1=toma)
+        seguro(lento, "scale_to_length", False)
+        seguro(lento, "stretch_to_input", False)
+        for f, v in [(1, 1.0), (f0 - 10, 1.0), (f0 + 15, 0.30),
+                     (f0 + 120, 0.30), (f0 + 160, 1.0), (920, 1.0)]:
+            lento.speed_factor = v
+            lento.keyframe_insert(data_path="speed_factor", frame=f)
+
+        print("[ok] Escena MARROJO_SlowMo lista: cambia a esa escena y")
+        print("     renderiza la animacion para el video con camara lenta.")
+    except Exception as e:
+        print(f"[aviso] No se pudo crear la escena SlowMo: {e}")
+        print("        Hazlo a mano: Video Editing > Add > Scene > escena")
+        print("        principal, Add > Effect Strip > Speed, desactiva")
+        print("        'Stretch to input' y anima 'Speed Factor' a 0.30")
+        print("        durante el colapso.")
+
+
 # ---------------------------------------------------------------------
 #  9. CONTROL DE SIMULACION
 # ---------------------------------------------------------------------
@@ -2472,7 +2831,7 @@ def construir_escena():
     col_camara = crear_coleccion("05_Camara")
     col_detalle = crear_coleccion("06_Detalles")
 
-    T = 14
+    T = 18
     suelo = _paso(1, T, "Suelo del desierto", crear_suelo, col_terreno)
     _paso(2, T, "Montanas procedurales", crear_montanas, col_montanas)
     _paso(3, T, "MAR CONTINUO que se abre (visible sin bake)", crear_mar_continuo, col_agua)
@@ -2489,8 +2848,13 @@ def construir_escena():
     _paso(11, T, "Camara cinematografica", crear_camara, col_camara)
     _paso(12, T, "Camara submarina + volumen bajo el agua",
           lambda: crear_camara_submarina(col_camara, col_atmos))
-    _paso(13, T, "Refuerzo de texturas (suelo, montanas, rocas)", reforzar_texturas)
-    _paso(14, T, "Compositor (bloom y color)", configurar_compositor)
+    _paso(13, T, "Relampagos (rayos + destellos)", crear_relampagos, col_atmos)
+    _paso(14, T, "Spray de los muros (particulas)", crear_spray_muros, col_agua)
+    _paso(15, T, "Niebla de impacto del colapso", crear_niebla_impacto, col_atmos)
+    _paso(16, T, "Pajaros huyendo", crear_pajaros, col_detalle)
+    _paso(17, T, "Refuerzo de texturas (suelo, montanas, rocas)", reforzar_texturas)
+    _paso(18, T, "Compositor (bloom y color) + escena SlowMo", lambda: (configurar_compositor(),
+                                                                        configurar_slowmo_vse()))
 
     try:
         bpy.context.scene.frame_set(CONFIG.FRAME_START)

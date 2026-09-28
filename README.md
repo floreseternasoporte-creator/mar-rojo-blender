@@ -20,6 +20,15 @@ el Mar Rojo abriéndose en dos muros de agua gigantes y colapsando como un tsuna
    **cámara SUBMARINA**: cuando el colapso inunda el pasillo, la cámara baja al agua y graba la inundación
    desde dentro, con volumen azul bajo el agua. El cambio es automático con marcadores de cámara.
 6. **Tres tomas**: apertura → muros → colapso (+ inundación submarina).
+7. **Efectos especiales BRUTALES**:
+   - ⚡ **Relámpagos** — 7 rayos con geometría quebrada que parpadean como relámpagos reales; dos caen
+     detrás de los muros para iluminarlos desde adentro.
+   - 💦 **Spray** — salpicaduras en la base y la cresta de los muros que siguen su crecimiento, más
+     explosión de espuma en el colapso.
+   - 🌫️ **Niebla de impacto** — nube de bruma enorme que avanza con la inundación.
+   - 🐦 **Pájaros huyendo** — 3 bandadas (24 pájaros) con aleteo animado escapando del mar.
+   - 🎥 **Cámara lenta** — la escena `MARROJO_SlowMo` aplica velocidad 0.30x durante el colapso;
+     solo cambia a esa escena y dale a Render Animation.
 
 ## 🚀 Cómo usarlo
 
