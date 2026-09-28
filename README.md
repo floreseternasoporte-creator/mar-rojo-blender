@@ -12,9 +12,14 @@ el Mar Rojo abriéndose en dos muros de agua gigantes y colapsando como un tsuna
 3. **El mar y dos muros de agua GIGANTES** — el mar se abre como una cremallera (empieza en un punto y avanza),
    el agua se retira del centro hacia afuera y los muros suben desde la base. Al final **colapsan en cascada
    desde una esquina, como un tsunami**.
+   - **Agua fotorrealista**: transmisión real (IOR 1.333) + absorción volumétrica — el color depende del grosor
+     del agua, como en la vida real. Ya no se ve negra.
+   - **Escenario grande**: pasillo de 900 m, suelo de 2400 m, cordilleras lejanas y mar abierto.
 4. **Cielo tormentoso** — nubes procedurales en dos capas, niebla, rayos de luz y polvo en el aire.
-5. **Cámara cinematográfica** — recorrido en tres actos, foco dinámico, viento y sacudida.
-6. **Tres tomas**: apertura → muros → colapso.
+5. **DOS cámaras** — aérea cinematográfica (recorrido en tres actos, foco dinámico, viento y sacudida) y
+   **cámara SUBMARINA**: cuando el colapso inunda el pasillo, la cámara baja al agua y graba la inundación
+   desde dentro, con volumen azul bajo el agua. El cambio es automático con marcadores de cámara.
+6. **Tres tomas**: apertura → muros → colapso (+ inundación submarina).
 
 ## 🚀 Cómo usarlo
 

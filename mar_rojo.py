@@ -17,8 +17,9 @@
      COLAPSAN EN CASCADA desde una esquina, como un tsunami.
   5. Cielo tormentoso, nublado, con nubes procedurales, niebla,
      rayos de luz (god rays) y polvo en el aire.
-  6. Camara cinematografica con recorrido, foco, viento y sacudida.
-  7. Tres tomas: apertura -> muros -> colapso.
+  6. DOS camaras: aerea cinematografica (recorrido, foco, viento, sacudida)
+     y SUBMARINA que baja al agua cuando el colapso inunda el pasillo.
+  7. Tres tomas: apertura -> muros -> colapso (+ inundacion bajo el agua).
 
   NOVEDADES DE ESTA VERSION (sobre tu script)
   -------------------------------------------
@@ -77,6 +78,7 @@ class CONFIG:
     T_SOSTENIDO_FIN = 340         # muros estables (toma mas espectacular)
     T_COLAPSO_INI = 340           # el agua empieza a desplomarse (esquina)
     T_COLAPSO_FIN = 590
+    T_SUBMARINA_INI = 400         # la camara baja al agua con la inundacion
 
     # Como se ABRE el mar (cremallera que avanza)
     ORIGEN_APERTURA_Y = 20.0      # punto donde nace la grieta (eje Y)
@@ -90,12 +92,12 @@ class CONFIG:
     DURACION_COLAPSO = 64         # frames que tarda en caer cada trozo
     VEL_BORE = 0.85               # m/frame a la que la inundacion cruza el pasillo
 
-    # Escena (unidades = metros)
+    # Escena (unidades = metros) - ESCENARIO GRANDE
     ANCHO_PASILLO = 56.0          # separacion final entre muros
     ALTURA_MURO = 80.0            # altura de los muros de agua
     ANCHO_MURO_AGUA = 90.0        # grosor (ladera trasera) del muro
-    LARGO_ESCENA = 420.0          # longitud del pasillo (eje Y)
-    TAMANO_SUELO = 900.0
+    LARGO_ESCENA = 900.0          # longitud del pasillo (eje Y)
+    TAMANO_SUELO = 2400.0
 
     # Muestreo del agua (cada cuantos frames se guarda una forma)
     PASO_MUESTREO = 10
@@ -449,7 +451,7 @@ def configurar_render():
             vs.look = 'High Contrast'
         except Exception:
             pass
-    vs.exposure = -0.15
+    vs.exposure = 0.15
 
     escena.render.image_settings.file_format = 'PNG'
     escena.render.image_settings.color_depth = '16'
@@ -676,13 +678,13 @@ def crear_suelo(coleccion):
 
     for v in bm.verts:
         x, y = v.co.x, v.co.y
-        # LATERAL: el desierto llega hasta las montanas (|x| ~ 330) y despues
+        # LATERAL: el desierto llega hasta las montanas (|x| ~ 600) y despues
         # cae bajo el agua base. Asi las montanas laterales apoyan en tierra firme.
-        caida_x = _caida(abs(x), 340.0, 440.0)
-        # FONDO (+Y): plano hasta pasar las montanas del fondo (y ~ 560).
-        caida_y_fondo = _caida(y, 560.0, 700.0) if y > 0 else 0.0
+        caida_x = _caida(abs(x), 700.0, 950.0)
+        # FONDO (+Y): plano hasta pasar las montanas del fondo (y ~ 1000).
+        caida_y_fondo = _caida(y, 950.0, 1150.0) if y > 0 else 0.0
         # FRENTE (-Y): la costa donde esta la camara; cae hacia el mar abierto.
-        caida_y_frente = _caida(-y, 260.0, 420.0) if y < 0 else 0.0
+        caida_y_frente = _caida(-y, 500.0, 750.0) if y < 0 else 0.0
         caida = max(caida_x, caida_y_fondo, caida_y_frente)
         v.co.z = -7.0 * caida
 
@@ -937,21 +939,21 @@ def crear_montanas(coleccion):
     # Cordillera lejana (fondo del pasillo)
     configuracion_fondo = [
         # ubicacion,                     escala,                  semilla
-        ((-160, 360, 0),  (240, 240, 120), 11),
-        ((  40, 420, 0),  (300, 260, 165), 12),
-        (( 230, 370, 0),  (250, 230, 130), 13),
-        ((-330, 300, 0),  (200, 200, 100), 14),
-        (( 360, 310, 0),  (210, 210, 105), 15),
-        ((   0, 520, 0),  (420, 300, 230), 16),
+        ((-300, 700, 0),  (300, 300, 150), 11),
+        ((  80, 820, 0),  (380, 340, 200), 12),
+        (( 420, 720, 0),  (320, 300, 160), 13),
+        ((-620, 620, 0),  (260, 260, 130), 14),
+        (( 680, 640, 0),  (270, 270, 135), 15),
+        ((   0, 1000, 0), (520, 380, 280), 16),
     ]
     # Acantilados laterales (encajonan el pasillo)
     configuracion_lateral = [
-        ((-300, 100, 0),  (190, 260, 85),  21),
-        ((-320, -90, 0),  (180, 240, 78),  22),
-        (( 310, 120, 0),  (190, 260, 88),  23),
-        (( 330, -80, 0),  (180, 240, 80),  24),
-        ((-280, 240, 0),  (170, 200, 82),  25),
-        (( 290, 250, 0),  (170, 200, 84),  26),
+        ((-560, 200, 0),  (240, 330, 105), 21),
+        ((-590, -150, 0), (230, 300, 95),  22),
+        (( 570, 220, 0),  (240, 330, 108), 23),
+        (( 600, -140, 0), (230, 300, 98),  24),
+        ((-520, 480, 0),  (220, 260, 100), 25),
+        (( 530, 500, 0),  (220, 260, 102), 26),
     ]
 
     for i, (loc, esc, sem) in enumerate(configuracion_fondo + configuracion_lateral):
@@ -968,9 +970,12 @@ def crear_montanas(coleccion):
 # ---------------------------------------------------------------------
 def crear_material_agua():
     """
-    Agua fotorrealista para muros gigantes y mar:
-      - Cuerpo de agua oscuro/turquesa (mas claro y translucido arriba)
-      - Reflejo del cielo con Fresnel (el mar refleja las nubes)
+    Agua fotorrealista para muros gigantes y mar (Cycles):
+      - Principled BSDF con TRANSMISION real (IOR 1.333): se ve como agua
+        de verdad, no como plastico oscuro
+      - ABSORCION volumetrica: el color depende del grosor que atraviesa
+        la luz (clara en lo fino, turquesa en lo profundo)
+      - Reflejo del cielo (especular del Principled)
       - Ondas finas ANIMADAS en el tiempo
       - Cascadas / estrias de agua CAYENDO por las paredes
       - Espuma: cresta del muro, base (agua chocando), y caos del colapso
@@ -1002,11 +1007,6 @@ def crear_material_agua():
     px, py, pz = sep.outputs["X"], sep.outputs["Y"], sep.outputs["Z"]
 
     # --- Ondas superficiales finas (movimiento continuo) ---
-    def _ruido4d(escala, detalle, w, desliz, y_loc):
-        """Ruido 4D que se desplaza y 'hierve' con el tiempo."""
-        cx = mat_(mat_out(px), desliz[0])
-        return None
-
     def _desliz(vx, vy):
         v = nodes.new("ShaderNodeCombineXYZ")
         v.location = (-1500, 300)
@@ -1105,77 +1105,44 @@ def crear_material_agua():
                        mat(nodes, 'ADD', f_caos, f_base),
                        clamp=True, loc=(-500, -1100))
 
-    # --- Cuerpo del agua: oscuro abajo, turquesa translucido arriba ---
-    fz = rango(nodes, pz, -2.0, H * 0.95, loc=(-1500, 700))
-    color_cuerpo = rampa_color(nodes, fz, [
-        (0.00, (0.003, 0.045, 0.060, 1.0)),
-        (0.35, (0.012, 0.150, 0.170, 1.0)),
-        (0.80, (0.045, 0.360, 0.330, 1.0)),
-        (1.00, (0.150, 0.540, 0.440, 1.0)),
-    ], loc=(-1200, 700))
+    # --- AGUA REAL: Principled con transmision (IOR del agua = 1.333) ---
+    # El agua deja de ser un plastico oscuro: transmite la luz de verdad.
+    agua = nodes.new("ShaderNodeBsdfPrincipled")
+    agua.location = (300, 300)
+    agua.inputs["Base Color"].default_value = (0.55, 0.75, 0.78, 1.0)
+    set_input(agua, ["Transmission Weight", "Transmission"], 1.0)
+    agua.inputs["IOR"].default_value = 1.333
+    set_input(agua, ["Specular IOR Level", "Specular"], 0.5)
+    links.new(N, agua.inputs["Normal"])
 
-    difuso = nodes.new("ShaderNodeBsdfDiffuse")
-    difuso.location = (300, 500)
-    links.new(color_cuerpo, difuso.inputs["Color"])
-    links.new(N, difuso.inputs["Normal"])
+    # La pared mojada es un poco mas rugosa donde caen las estrias
+    rug_mix = nodes.new("ShaderNodeMath")
+    rug_mix.operation = 'MULTIPLY_ADD'
+    rug_mix.location = (100, 100)
+    rug_mix.inputs[1].default_value = 0.05
+    links.new(estria_m, rug_mix.inputs[0])
+    links.new(mat(nodes, 'MULTIPLY', inclin, 0.25), rug_mix.inputs[2])
+    links.new(rug_mix.outputs[0], agua.inputs["Roughness"])
 
-    trans = nodes.new("ShaderNodeBsdfTranslucent")
-    trans.location = (300, 300)
-    links.new(color_cuerpo, trans.inputs["Color"])
-    links.new(N, trans.inputs["Normal"])
+    # --- VOLUMEN: absorcion (el grosor tine el agua, como en la vida real) ---
+    # Poca agua = clara; mucha agua = turquesa profundo. Asi se ve real.
+    absor = nodes.new("ShaderNodeVolumeAbsorption")
+    absor.location = (300, -150)
+    absor.inputs["Color"].default_value = (0.015, 0.28, 0.34, 1.0)
+    absor.inputs["Density"].default_value = 0.05
+    links.new(absor.outputs[0], salida.inputs["Volume"])
 
-    cuerpo_mix = nodes.new("ShaderNodeMixShader")
-    cuerpo_mix.location = (600, 400)
-    cuerpo_mix.inputs[0].default_value = 0.55
-    links.new(difuso.outputs["BSDF"], cuerpo_mix.inputs[1])
-    links.new(trans.outputs["BSDF"], cuerpo_mix.inputs[2])
-
-    brillo = nodes.new("ShaderNodeEmission")
-    brillo.location = (600, 200)
-    links.new(color_cuerpo, brillo.inputs["Color"])
-    brillo.inputs["Strength"].default_value = 0.10
-
-    cuerpo = nodes.new("ShaderNodeAddShader")
-    cuerpo.location = (850, 350)
-    links.new(cuerpo_mix.outputs["Shader"], cuerpo.inputs[0])
-    links.new(brillo.outputs["Emission"], cuerpo.inputs[1])
-
-    # --- Reflejo del cielo (Fresnel) ---
-    reflejo = nodes.new("ShaderNodeBsdfGlossy")
-    reflejo.location = (850, 0)
-    reflejo.inputs["Roughness"].default_value = 0.035
-    reflejo.inputs["Color"].default_value = (0.95, 0.98, 1.0, 1.0)
-    links.new(N, reflejo.inputs["Normal"])
-
-    fresnel = nodes.new("ShaderNodeFresnel")
-    fresnel.location = (850, 700)
-    fresnel.inputs["IOR"].default_value = 1.333
-    links.new(N, fresnel.inputs["Normal"])
-
-    agua = nodes.new("ShaderNodeMixShader")
-    agua.location = (1250, 300)
-    links.new(fresnel.outputs["Fac"], agua.inputs[0])
-    links.new(cuerpo.outputs["Shader"], agua.inputs[1])
-    links.new(reflejo.outputs["BSDF"], agua.inputs[2])
-
-    # --- Espuma blanca (algo translucida) ---
-    esp_dif = nodes.new("ShaderNodeBsdfDiffuse")
-    esp_dif.location = (1250, -300)
-    esp_dif.inputs["Color"].default_value = (0.93, 0.97, 1.0, 1.0)
-    esp_tra = nodes.new("ShaderNodeBsdfTranslucent")
-    esp_tra.location = (1250, -450)
-    esp_tra.inputs["Color"].default_value = (0.85, 0.95, 0.97, 1.0)
-    espuma_shader = nodes.new("ShaderNodeMixShader")
-    espuma_shader.location = (1500, -350)
-    espuma_shader.inputs[0].default_value = 0.35
-    links.new(esp_dif.outputs["BSDF"], espuma_shader.inputs[1])
-    links.new(esp_tra.outputs["BSDF"], espuma_shader.inputs[2])
+    # --- Espuma blanca ---
+    espuma_shader = nodes.new("ShaderNodeBsdfPrincipled")
+    espuma_shader.location = (1250, -300)
+    espuma_shader.inputs["Base Color"].default_value = (0.93, 0.97, 1.0, 1.0)
+    espuma_shader.inputs["Roughness"].default_value = 0.45
 
     final = nodes.new("ShaderNodeMixShader")
     final.location = (1850, 100)
     links.new(espuma_total, final.inputs[0])
-    links.new(agua.outputs["Shader"], final.inputs[1])
-    links.new(espuma_shader.outputs["Shader"], final.inputs[2])
+    links.new(agua.outputs["BSDF"], final.inputs[1])
+    links.new(espuma_shader.outputs["BSDF"], final.inputs[2])
     links.new(final.outputs["Shader"], salida.inputs["Surface"])
 
     return mat
@@ -1285,7 +1252,7 @@ def _forma_mar(t, X0, Y0, mitad, alto, anc_m, piso):
     signo = np.where(X0 >= 0, 1.0, -1.0)
 
     # ventana del pasillo en Y (el pasillo se cierra suavemente en los extremos)
-    borde = _suave((Y0 + 360.0) / 110.0) * (1.0 - _suave((Y0 - 480.0) / 120.0))
+    borde = _suave((Y0 + 700.0) / 200.0) * (1.0 - _suave((Y0 - 900.0) / 220.0))
 
     # ---------------- APERTURA ----------------
     t_ap = CONFIG.T_APERTURA_INI + np.abs(Y0 - CONFIG.ORIGEN_APERTURA_Y) / CONFIG.V_APERTURA
@@ -1381,12 +1348,12 @@ def crear_mar_continuo(coleccion):
     u1 = np.linspace(0.0, mitad - 4.0, 10, endpoint=False)               # piso
     u2 = np.linspace(mitad - 4.0, mitad + 34.0, 66, endpoint=False)      # cara del muro (densa)
     u3 = (mitad + 34.0) + 170.0 * (np.linspace(0, 1, 52, endpoint=False) ** 1.3)   # ladera
-    u4 = (mitad + 204.0) + (900.0 - (mitad + 204.0)) * (np.linspace(0, 1, 30) ** 1.5)  # mar lejano
+    u4 = (mitad + 204.0) + (1500.0 - (mitad + 204.0)) * (np.linspace(0, 1, 30) ** 1.5)  # mar lejano
     u_all = np.concatenate([u1, u2, u3, u4])
     xs = np.concatenate([-u_all[:0:-1], u_all])          # simetrico
 
-    n_y = 270
-    y_min, y_max = -520.0, 620.0
+    n_y = 340
+    y_min, y_max = -800.0, 1000.0
     ys = np.linspace(y_min, y_max, n_y + 1)
 
     nx, ny = len(xs), len(ys)
@@ -1470,6 +1437,12 @@ def crear_mar_continuo(coleccion):
     sub.levels = 0
     sub.render_levels = 1
 
+    # Grosor real: convierte la superficie en un volumen cerrado para que la
+    # absorcion volumetrica del material funcione (color segun profundidad)
+    sol = mar.modifiers.new("Grosor", 'SOLIDIFY')
+    sol.thickness = 3.0
+    sol.offset = 0.0
+
     mar.data.materials.append(
         bpy.data.materials.get("Agua_MarRojo") or crear_material_agua())
     mover_a_coleccion(mar, coleccion)
@@ -1524,7 +1497,7 @@ def crear_fuente_de_fluido(coleccion):
     ancho_bloque = 90.0
     alto_bloque = CONFIG.ALTURA_MURO
     largo_total = CONFIG.LARGO_ESCENA
-    n_seg = 8
+    n_seg = 10
     largo_seg = largo_total / n_seg
 
     for lado, signo in (("Izq", -1), ("Der", 1)):
@@ -1739,13 +1712,13 @@ def crear_agua_base_profunda(coleccion):
     lecho seco del pasillo queda por debajo del nivel del mar, esta capa
     tambien se ve en los charcos y las zonas bajas.
     """
-    bpy.ops.mesh.primitive_plane_add(size=4000, location=(0, 0, -3.5))
+    bpy.ops.mesh.primitive_plane_add(size=8000, location=(0, 0, -3.5))
     base = bpy.context.active_object
     base.name = "Agua_Base_Profunda"
 
     ocean = base.modifiers.new("Olas", 'OCEAN')
     for attr, val in [
-        ("geometry_mode", 'GENERATE'), ("repeat_x", 6), ("repeat_y", 6),
+        ("geometry_mode", 'GENERATE'), ("repeat_x", 10), ("repeat_y", 10),
         ("resolution", 14), ("spatial_size", 160), ("wave_scale", 2.2),
         ("choppiness", 1.4), ("wind_velocity", 20.0),
         ("wave_direction", math.radians(90)), ("depth", 400),
@@ -1852,7 +1825,7 @@ def crear_cielo():
     salida.location = (2600, 0)
     fondo = nodes.new("ShaderNodeBackground")
     fondo.location = (2350, 0)
-    fondo.inputs["Strength"].default_value = 1.15
+    fondo.inputs["Strength"].default_value = 1.35
 
     T = nodo_tiempo(nodes, -1900, 900).outputs[0]
 
@@ -1972,8 +1945,8 @@ def crear_niebla_volumetrica(coleccion):
     bpy.ops.mesh.primitive_cube_add(size=1.0)
     caja = bpy.context.active_object
     caja.name = "Niebla_Volumen"
-    caja.scale = (700, 700, 90)
-    caja.location = (0, 150, 80)
+    caja.scale = (1500, 1500, 110)
+    caja.location = (0, 300, 90)
     caja.display_type = 'WIRE'
 
     mat_ = bpy.data.materials.new("Volumen_Bruma")
@@ -2019,7 +1992,7 @@ def crear_luces(coleccion):
     bpy.ops.object.light_add(type='SUN', location=(120, -180, 90))
     sol = bpy.context.active_object
     sol.name = "Sol_Principal"
-    sol.data.energy = 5.0
+    sol.data.energy = 8.0
     sol.data.color = (1.0, 0.80, 0.58)
     sol.data.angle = math.radians(2.5)       # sombras mas suaves (cielo nublado)
     sol.rotation_euler = SOL_EULER.copy()
@@ -2029,7 +2002,7 @@ def crear_luces(coleccion):
     bpy.ops.object.light_add(type='AREA', location=(-100, -120, 140))
     relleno = bpy.context.active_object
     relleno.name = "Relleno_Cielo"
-    relleno.data.energy = 6000
+    relleno.data.energy = 9000
     relleno.data.color = (0.55, 0.70, 1.0)
     relleno.data.size = 180
     relleno.rotation_euler = Euler((math.radians(55), 0, math.radians(30)))
@@ -2039,7 +2012,7 @@ def crear_luces(coleccion):
     bpy.ops.object.light_add(type='AREA', location=(0, -60, 2))
     rebote = bpy.context.active_object
     rebote.name = "Rebote_Suelo"
-    rebote.data.energy = 3500
+    rebote.data.energy = 6000
     rebote.data.color = (1.0, 0.65, 0.40)
     rebote.data.size = 160
     rebote.rotation_euler = Euler((math.radians(180), 0, 0))
@@ -2143,6 +2116,120 @@ def crear_camara(coleccion):
     return cam
 
 
+def crear_volumen_submarino(coleccion):
+    """
+    Volumen azul que aparece cuando la camara baja al agua: tine la vista
+    submarina como agua real (se enciende con la inundacion y se apaga al final).
+    """
+    bpy.ops.mesh.primitive_cube_add(size=1.0)
+    caja = bpy.context.active_object
+    caja.name = "Volumen_Submarino"
+    caja.scale = (90, 700, 30)
+    caja.location = (0, 150, 10)
+    caja.display_type = 'WIRE'
+
+    mat_ = bpy.data.materials.new("Volumen_AguaSub")
+    mat_.use_nodes = True
+    nt = mat_.node_tree
+    nodes, links = nt.nodes, nt.links
+    nodes.clear()
+    salida = nodes.new("ShaderNodeOutputMaterial")
+    salida.location = (600, 0)
+    scat = nodes.new("ShaderNodeVolumeScatter")
+    scat.location = (300, 0)
+    scat.inputs["Color"].default_value = (0.12, 0.42, 0.55, 1.0)
+    scat.inputs["Anisotropy"].default_value = 0.6
+    scat.inputs["Density"].default_value = 0.0
+    links.new(scat.outputs[0], salida.inputs["Volume"])
+    caja.data.materials.append(mat_)
+
+    # Aparece con la inundacion, se mantiene y se apaga al final
+    t0 = CONFIG.T_SUBMARINA_INI
+    for f, d in ((t0 - 30, 0.0), (t0 + 40, 0.035), (CONFIG.FRAME_END - 40, 0.035),
+                 (CONFIG.FRAME_END, 0.0)):
+        scat.inputs["Density"].default_value = d
+        scat.inputs["Density"].keyframe_insert(data_path="default_value", frame=f)
+
+    mover_a_coleccion(caja, coleccion)
+    return caja
+
+
+def crear_camara_submarina(col_camara, col_atmos):
+    """
+    Segunda camara: BAJO EL AGUA. Entra cuando el colapso inunda el pasillo
+    (T_SUBMARINA_INI) y avanza CON la ola, grabando la inundacion desde dentro
+    hasta el final. El cambio de camara se hace con marcadores de camara en
+    la linea de tiempo (aerea -> submarina).
+    """
+    escena = bpy.context.scene
+    t0 = CONFIG.T_SUBMARINA_INI
+
+    bpy.ops.object.camera_add(location=(0, -60, 3.0))
+    cam = bpy.context.active_object
+    cam.name = "Camara_Submarina"
+    cd = cam.data
+    cd.lens = 18                      # gran angular bajo el agua
+    cd.sensor_width = 36
+    cd.clip_start = 0.3
+    cd.clip_end = 5000
+    seguro(cd.dof, "use_dof", True)
+    seguro(cd.dof, "aperture_fstop", 2.0)
+    seguro(cd.dof, "focus_distance", 40.0)
+
+    bpy.ops.object.empty_add(type='SPHERE', location=(0, 60, 4))
+    objetivo = bpy.context.active_object
+    objetivo.name = "Objetivo_Submarino"
+    objetivo.empty_display_size = 3
+
+    trk = cam.constraints.new('TRACK_TO')
+    trk.target = objetivo
+    trk.track_axis = 'TRACK_NEGATIVE_Z'
+    trk.up_axis = 'UP_Y'
+
+    # La camara avanza CON la inundacion, a poca altura, dentro del agua
+    for frame, pos in [(t0, (0, -60, 3.0)), (t0 + 60, (0, 20, 2.5)),
+                       (t0 + 120, (0, 100, 3.0)), (CONFIG.FRAME_END, (0, 180, 4.0))]:
+        cam.location = pos
+        cam.keyframe_insert(data_path="location", frame=frame)
+    for frame, pos in [(t0, (0, 60, 4.0)), (t0 + 100, (0, 160, 5.0)),
+                       (CONFIG.FRAME_END, (0, 260, 6.0))]:
+        objetivo.location = pos
+        objetivo.keyframe_insert(data_path="location", frame=frame)
+
+    suavizar_fcurves(cam, 'BEZIER')
+    suavizar_fcurves(objetivo, 'BEZIER')
+
+    # Sacudida bajo el agua (la ola empuja la camara)
+    for fc in obtener_fcurves(cam):
+        if fc.data_path == "location":
+            idx = fc.array_index
+            mod = fc.modifiers.new('NOISE')
+            mod.scale = 4.0
+            mod.strength = 0.25 if idx != 2 else 0.35
+            mod.phase = random.uniform(0, 100)
+            mod.use_restricted_range = True
+            mod.frame_start = t0
+            mod.frame_end = CONFIG.FRAME_END
+            mod.blend_in = 20
+            mod.blend_out = 20
+
+    # Marcadores de camara en la linea de tiempo: aerea -> submarina
+    for mk in list(escena.timeline_markers):
+        if mk.name in ("Aerea", "Submarina"):
+            escena.timeline_markers.remove(mk)
+    for nombre, f, camara in (("Aerea", CONFIG.FRAME_START, bpy.data.objects.get("Camara_Epica")),
+                              ("Submarina", t0, cam)):
+        if camara is None:
+            continue
+        mk = escena.timeline_markers.new(nombre, frame=f)
+        mk.camera_data = camara
+
+    crear_volumen_submarino(col_atmos)
+    mover_a_coleccion(cam, col_camara)
+    mover_a_coleccion(objetivo, col_camara)
+    return cam
+
+
 # ---------------------------------------------------------------------
 #  7. EFECTOS EXTRA: POLVO, PIEDRAS Y AGRIETAMIENTO
 # ---------------------------------------------------------------------
@@ -2151,7 +2238,7 @@ def crear_polvo_flotante(coleccion):
     bpy.ops.mesh.primitive_plane_add(size=1.0, location=(0, 0, 8))
     em = bpy.context.active_object
     em.name = "Emisor_Polvo"
-    em.scale = (300, 220, 1)
+    em.scale = (700, 500, 1)
     em.hide_render = True
 
     em.modifiers.new("Part", 'PARTICLE_SYSTEM')
@@ -2385,7 +2472,7 @@ def construir_escena():
     col_camara = crear_coleccion("05_Camara")
     col_detalle = crear_coleccion("06_Detalles")
 
-    T = 13
+    T = 14
     suelo = _paso(1, T, "Suelo del desierto", crear_suelo, col_terreno)
     _paso(2, T, "Montanas procedurales", crear_montanas, col_montanas)
     _paso(3, T, "MAR CONTINUO que se abre (visible sin bake)", crear_mar_continuo, col_agua)
@@ -2400,8 +2487,10 @@ def construir_escena():
     _paso(10, T, "Rocas y polvo", lambda: (crear_rocas_dispersas(col_detalle),
                                           crear_polvo_flotante(col_detalle)))
     _paso(11, T, "Camara cinematografica", crear_camara, col_camara)
-    _paso(12, T, "Refuerzo de texturas (suelo, montanas, rocas)", reforzar_texturas)
-    _paso(13, T, "Compositor (bloom y color)", configurar_compositor)
+    _paso(12, T, "Camara submarina + volumen bajo el agua",
+          lambda: crear_camara_submarina(col_camara, col_atmos))
+    _paso(13, T, "Refuerzo de texturas (suelo, montanas, rocas)", reforzar_texturas)
+    _paso(14, T, "Compositor (bloom y color)", configurar_compositor)
 
     try:
         bpy.context.scene.frame_set(CONFIG.FRAME_START)
